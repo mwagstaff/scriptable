@@ -13,6 +13,7 @@ const SERVER_URI_DOMAIN = 'https://football-scores-api.fly.dev';
 let teamLogos = {};
 
 let widget = new ListWidget();
+widget.url ='dev.skynolimit.topscores://'; 
 
 
 // TODO: Reinstate this
@@ -36,7 +37,6 @@ async function getMatches() {
         if (match.date === todaysDate) {
             match.friendlyDateTime = 'Today';
             matches.push(match);
-            await setTeamLogos(match);
         }
     }
 
@@ -46,7 +46,6 @@ async function getMatches() {
         const matchIndex = matches.findIndex(m => m.id === match.id);
         if (matchIndex === -1 && match.friendlyDateTime) {
             matches.push(match);
-            await setTeamLogos(match);
         }
 
         // If we've reached the maximum number of matches, then stop
@@ -54,6 +53,9 @@ async function getMatches() {
             break;
         }
     }
+
+    // Use Promises.all to set the team logos for all matches
+    await Promise.all(matches.map(match => setTeamLogos(match)));
 
     return matches.slice(0, MAX_MATCHES);
 }
