@@ -727,7 +727,7 @@ function addDepartureTime(departureRow, departureTime, delay, cancelReasonCode) 
 
     departureTimeLabel.textColor = departureColours.foregroundColor;
 
-    departureRow.addSpacer(5);
+    departureRow.addSpacer(10);
 }
 
 // Returns a strike-through "gradient" that can be applied to cancelled departures
@@ -801,7 +801,7 @@ function addDeparturePlatform(departureRow, platform, cancelReasonCode) {
     platformLabel.textColor = Color.white();
     platformLabel.centerAlignText();
     platformLabel.lineLimit = 1;
-    departureRow.addSpacer(10);
+    departureRow.addSpacer(5);
 }
 
 await populateTrainsContent();
