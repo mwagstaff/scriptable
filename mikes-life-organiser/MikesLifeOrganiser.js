@@ -18,7 +18,7 @@ const CALENDAR_TAGS = ['', '🎉', ''];
 const DO_NOT_SHOW_EVENTS = ['laundry'];
 
 // Weather config
-const WEATHER_API_KEY = 'b7c507191e034a5791a124926242206';
+const WEATHER_API_KEY = 'YOUR_API_KEY_HERE';
 const MAX_WEATHER_HOURS = 4;
 const MAX_WEATHER_DAYS = 4;
 
