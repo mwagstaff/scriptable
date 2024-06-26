@@ -7,7 +7,7 @@
 // **********************************************
 
 // Football config
-const DEVICE_ID = 'D1B468E9-AC32-42C1-BB83-B7B60D3DA094'
+const DEVICE_ID = 'DEVICE_ID_SECRET'
 const MAX_MATCHES = 5;
 const FOOTBALL_SERVER_URI_DOMAIN = 'https://football-scores-api.fly.dev';
 
@@ -18,7 +18,7 @@ const CALENDAR_TAGS = ['', '🎉', ''];
 const DO_NOT_SHOW_EVENTS = ['laundry'];
 
 // Weather config
-const WEATHER_API_KEY = 'YOUR_API_KEY_HERE';
+const WEATHER_API_KEY = 'WEATHER_API_KEY_SECRET';
 const MAX_WEATHER_HOURS = 4;
 const MAX_WEATHER_DAYS = 4;
 
