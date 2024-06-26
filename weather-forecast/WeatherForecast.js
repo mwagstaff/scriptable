@@ -289,5 +289,5 @@ await populateWeatherContent();
 
 // Populate widget
 Script.setWidget(widget)
-widget.presentSmall()
+widget.presentMedium()
 Script.complete()
