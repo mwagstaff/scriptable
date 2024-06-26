@@ -1,4 +1,4 @@
-# Football Scores
+# Weather Forecast
 
 Designed for use as a medium widget, showing the weather forecast for the next few hours / days:
 
