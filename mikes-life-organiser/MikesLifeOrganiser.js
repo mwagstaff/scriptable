@@ -27,7 +27,7 @@ const MAX_WEATHER_DAYS = 4;
 const FROM_STATION = 'KTH';
 const TO_STATION = 'VIC';
 const REVERSE_JOURNEY_AFTER_TIME = '12:00';
-const MAX_TRAINS = 3;
+const MAX_TRAINS = 4;
 
 // Bromley Bins config
 const BROMLEY_BINS_API_URL = 'http://mikes-macbook-air.local:3004/api/v1/bin/3642936/bins_for_tomorrow';
@@ -708,14 +708,11 @@ function getDelay(bookedDepartureTime, realtimeDepartureTime) {
 function addDepartureTime(departureRow, departureTime, delay, cancelReasonCode) {
 
     const col = departureRow.addStack();
-    col.addSpacer();
-
+    col.addSpacer(3);
     // Add a ':' time separator, e.g. change to '12:00' from '1200'
     const departureTimeLabel = col.addText(departureTime.replace(/(\d{2})(\d{2})/, '$1:$2'));
-
-    col.addSpacer();
+    col.addSpacer(3);
     departureTimeLabel.font = new Font('Menlo-Bold', 12);
-
     departureTimeLabel.centerAlignText();
     departureTimeLabel.lineLimit = 1;
 
@@ -730,7 +727,7 @@ function addDepartureTime(departureRow, departureTime, delay, cancelReasonCode) 
 
     departureTimeLabel.textColor = departureColours.foregroundColor;
 
-    departureRow.addSpacer();
+    departureRow.addSpacer(5);
 }
 
 // Returns a strike-through "gradient" that can be applied to cancelled departures
@@ -804,7 +801,7 @@ function addDeparturePlatform(departureRow, platform, cancelReasonCode) {
     platformLabel.textColor = Color.white();
     platformLabel.centerAlignText();
     platformLabel.lineLimit = 1;
-    departureRow.addSpacer();
+    departureRow.addSpacer(10);
 }
 
 await populateTrainsContent();
