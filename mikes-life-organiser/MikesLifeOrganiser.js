@@ -113,10 +113,8 @@ function shouldShowEvent(event) {
 // Note we set accuracy to 100m as the default (most precise fix) can take up to 10 seconds to return
 async function getLocation(retryCount = 0) {
     try {
-        log('Getting location data');
         let location = Location.setAccuracyToHundredMeters();
         location = await Location.current();
-        log('Location: ' + JSON.stringify(location));
         return location;
     }
     catch (error) {
@@ -241,7 +239,40 @@ async function populateFootballContent(matches) {
 
         const row = widget.addStack();
 
-        // Fixture or match time
+        // Fixture date
+        let matchDateLabel = undefined;
+        log('Match date: ' + match.date);
+        if (i === 0 || matches[i - 1].friendlyDateTime !== currentMatchDate) {
+            log('New date');
+            if (isToday(new Date(match.date))) {
+                log('Adding today');
+                matchDateLabel = row.addText(getTextFormattedForListWidget('Today', 10));
+                log('Added today');
+            }
+            else if (isTomorrow(new Date(match.date))) {
+                log('Adding tomorrow');
+                matchDateLabel = row.addText(getTextFormattedForListWidget('Tomorrow', 10));
+            }
+            else {
+                // Get the date in the format 'Mon, 29/06'
+                const dateString = new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'numeric' }).replace(',', '');
+                log('Adding date: ' + dateString);
+                matchDateLabel = row.addText(getTextFormattedForListWidget(dateString, 10));
+            }
+            setTextAttributesForDate(new Date(match.date), matchDateLabel);
+            
+        }
+        else {
+            log('Skipping date');
+            matchDateLabel = row.addText(getTextFormattedForListWidget(' ', 10));
+        }
+        matchDateLabel.font = DEFAULT_FONT;
+        matchDateLabel.rightAlignText();
+        matchDateLabel.lineLimit = 1;
+        row.addSpacer(5);
+
+        // Match time (either in-play or kick-off time)
+        log('Match time')
         let matchTime = '';
         if (match.timeLabel) {
             matchTime = match.timeLabel;
@@ -249,14 +280,10 @@ async function populateFootballContent(matches) {
         else if (match.kickOffTime) {
             matchTime = match.kickOffTime;
         }
-        if (i === 0 || matches[i - 1].friendlyDateTime !== currentMatchDate) {
-            matchTime = getTextFormattedForListWidget(currentMatchDate + ' ' + matchTime, 17);
-        }
-        else {
-            matchTime = getTextFormattedForListWidget(matchTime, 17);
-        }
+        log('-> Match time: ' + matchTime);
+        matchTime = getTextFormattedForListWidget(matchTime, 5);
         const matchTimeLabel = row.addText(matchTime);
-        setTextAttributesForDate(new Date(match.date), matchTimeLabel);
+        matchTimeLabel.font = DEFAULT_FONT;
         matchTimeLabel.rightAlignText();
         matchTimeLabel.lineLimit = 1;
         row.addSpacer(5);
@@ -359,8 +386,7 @@ for (let eventIndex = 0; eventIndex < eventsArray.length && eventsFound < MAX_EV
 
         const event = eventsArray[eventIndex];
         const row = widget.addStack();
-        row.url = `calshow:\${event.startDate}`;
-        log('Row URL: ' + row.url);
+        row.url = 'calshow://';
 
         // If the event start date is today's date, then add it to the list
         let eventStartDateLabel = undefined;
@@ -372,7 +398,7 @@ for (let eventIndex = 0; eventIndex < eventsArray.length && eventsFound < MAX_EV
         }
         else {
             // Get the date in the format 'Mon, 29/06'
-            const dateString = event.startDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'numeric' });
+            const dateString = event.startDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'numeric' }).replace(',', '');
             eventStartDateLabel = row.addText(getTextFormattedForListWidget(dateString, 10));
             eventStartDateLabel.font = DEFAULT_FONT;
         }
@@ -477,13 +503,11 @@ async function populateWeatherContent() {
 
 async function getForecastData(location) {
     const url = `https://api.weatherapi.com/v1/forecast.json?q=${location.latitude},${location.longitude}&days=${MAX_WEATHER_DAYS + 1}&key=${WEATHER_API_KEY}`;
-    log('Getting forecast: ' + url);
     const weatherRequest = new Request(url);
     return await weatherRequest.loadJSON();
 }
 
 async function populateHourlyWeatherContent(weatherRow, weatherContent, hourlyForecast) {
-    log('Populating hourly weather content: ' + hourlyForecast.length);
 
     for (let i = 0; i < hourlyForecast.length && weatherContent.hourly.times.length < MAX_WEATHER_HOURS; i++) {
         const forecast = hourlyForecast[i];
@@ -491,7 +515,6 @@ async function populateHourlyWeatherContent(weatherRow, weatherContent, hourlyFo
 
         // Iterate through current and future hours
         if (forecast.time_epoch && forecast.time_epoch >= minEpoch) {
-            log(' -- Adding hour: ' + forecast.time);
             weatherContent.hourly.times.push(forecast.time.split(' ')[1]);          // Get the time in 24-hour format
             weatherContent.hourly.icons.urls.push(forecast.condition.icon);         // Get the forecast icon  
             weatherContent.hourly.temps.push(forecast.temp_c);                      // Get the temperature
@@ -518,7 +541,6 @@ function weatherSeparator(weatherRow) {
 }
 
 async function populateDailyWeatherContent(weatherRow, weatherContent, dailyForecast) {
-    log('Populating daily weather content: ' + dailyForecast.length);
 
     for (let i = 0; i < dailyForecast.length && weatherContent.daily.times.length < MAX_WEATHER_DAYS; i++) {
         const forecast = dailyForecast[i];
@@ -561,7 +583,6 @@ async function populateWeatherContentCols(weatherRow, weatherContent) {
 // Get the given weather forecast icon
 async function getForecastIcon(iconUriSuffix) {
     const imageUri = `https:${iconUriSuffix}`;
-    log('Getting icon: ' + imageUri);
     const request = new Request(imageUri);
     const image = await request.loadImage();
     return image;
@@ -585,7 +606,6 @@ function addWeatherIcon(col, icon) {
 }
 
 function addWeatherTemp(col, temp) {
-    log('Adding temp: ' + temp);
     const tempValueInt = parseInt(temp, 10);
     col.addSpacer();
     const tempLabel = col.addText(tempValueInt.toString());
@@ -669,7 +689,6 @@ async function getTrainsData() {
 }
 
 function populateTrainsRowContent(trainsRow, departures) {
-    log('Populating trains content: ' + departures.length);
 
     const stationNameLabel = trainsRow.addText(departures[0].locationDetail.crs);
     stationNameLabel.font = new Font('Menlo-Bold', 12);
@@ -686,7 +705,6 @@ function populateTrainsRowContent(trainsRow, departures) {
 }
 
 function addDeparture(trainsRow, departure) {
-    log('Adding departure: ' + departure);
     const departureRow = trainsRow.addStack();
     departureRow.url = 'traintrack://';
     const delay = getDelay(departure.locationDetail.gbttBookedDeparture, departure.locationDetail.realtimeDeparture);
@@ -824,9 +842,7 @@ async function getBinIconsLabel() {
     if (binsForTomorrow && binsForTomorrow.length > 0) {
         let binIndex = 0;
         for (const bin of binsForTomorrow) {
-            log(bin);
             if (BINS_OF_INTEREST.includes(bin)) {
-                log('Adding bin of interest: ' + bin);
                 binContent += BIN_ICONS[binIndex];
                 binIndex++;
             }
