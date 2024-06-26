@@ -17,8 +17,8 @@ widget.url ='dev.skynolimit.topscores://';
 
 
 // TODO: Reinstate this
-let fixturesRequest = new Request(`${SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures`);
-let resultsRequest = new Request(`${SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results`);
+let fixturesRequest = new Request(`${SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures?limit=${MAX_MATCHES}`);
+let resultsRequest = new Request(`${SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results?limit=${MAX_MATCHES}`);
 
 const [fixturesJson, resultsJson] = await Promise.all([fixturesRequest.loadJSON(), resultsRequest.loadJSON()]);
 
@@ -242,5 +242,5 @@ let nextRefresh = Date.now() + (1000 * 30) // Optimistically aim for a 30 second
 widget.refreshAfterDate = new Date(nextRefresh)
 
 Script.setWidget(widget)
-widget.presentSmall()
+widget.presentLarge()
 Script.complete()
