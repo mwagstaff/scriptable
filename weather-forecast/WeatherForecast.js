@@ -9,11 +9,19 @@
 // **********************************************
 
 // REQUIRED: Please obtain a free API key from https://www.weatherapi.com and enter it here
-const WEATHER_API_KEY = 'YOUR_API_KEY_HERE';
+const WEATHER_API_KEY = 'WEATHER_API_KEY_SECRET';
 
 // The maximum number of hours / days to show in the widget
 const MAX_WEATHER_HOURS = 4;
 const MAX_WEATHER_DAYS = 4;
+
+// Request timeout (in seconds)
+const DEFAULT_REQUEST_TIMEOUT_SECONDS = 10;
+
+// Fonts
+const DEFAULT_FONT = new Font('Menlo', 10);
+const DEFAULT_FONT_SMALL = new Font('Menlo', 8);
+const DEFAULT_FONT_BOLD = new Font('Menlo-Bold', 10);
 
 
 
@@ -23,13 +31,6 @@ const MAX_WEATHER_DAYS = 4;
 
 // Global variables
 let widget = new ListWidget();
-let teamLogos = {};
-
-// Truncate text to fit in a list widget cell, and pad with spaces to the right
-function getTextFormattedForListWidget(text, length) {
-    const truncatedText = text.length > length ? text.substring(0, length - 1) : text;
-    return truncatedText.padEnd(length, ' ');
-}
 
 // Show a section separator (horizontal gray line)
 function sectionSeparator() {
@@ -41,40 +42,17 @@ function sectionSeparator() {
     widget.addSpacer(10);
 }
 
-// Returns true if the given date is today
-function isToday(date) {
-    return date.toLocaleDateString() === new Date().toLocaleDateString();
-}
-
-// Returns true if the given date is tomorrow
-function isTomorrow(date) {
-    return date.toLocaleDateString() === new Date(new Date().getTime() + (1000 * 60 * 60 * 24)).toLocaleDateString();
-}
-
-// Sets font attributes the given date - white bold for today, white regular for tomorrow, gray regular for other
-function setTextAttributesForDate(date, label) {
-    if (isToday(date)) {
-        label.textColor = Color.white();
-        label.font = DEFAULT_FONT_BOLD;
+// Returns the JSON for the given URL
+async function getJson(url, timeout = DEFAULT_REQUEST_TIMEOUT_SECONDS) {
+    try {
+        const request = new Request(url);
+        request.timeoutInterval = timeout;
+        return await request.loadJSON();
     }
-    else if (isTomorrow(date)) {
-        label.textColor = Color.lightGray();
-        label.font = DEFAULT_FONT;
+    catch (error) {
+        console.error(`Unable to get JSON data from ${url}: ${error}`);
+        return undefined;
     }
-    else {
-        label.textColor = Color.gray();
-        label.font = DEFAULT_FONT;
-    }
-}
-
-// Returns true if the given calendar event should be shown, i.e. doesn't include any of the words in DO_NOT_SHOW_EVENTS
-function shouldShowEvent(event) {
-    for (const word of DO_NOT_SHOW_EVENTS) {
-        if (event.title.toLowerCase().includes(word.toLowerCase())) {
-            return false;
-        }
-    }
-    return true;
 }
 
 
@@ -140,10 +118,7 @@ async function getLocation() {
 }
 
 async function getForecastData(location) {
-    const url = `https://api.weatherapi.com/v1/forecast.json?q=${location.latitude},${location.longitude}&days=${MAX_WEATHER_DAYS + 1}&key=${WEATHER_API_KEY}`;
-    log('Getting forecast: ' + url);
-    const weatherRequest = new Request(url);
-    return await weatherRequest.loadJSON();
+    return await getJson(`https://api.weatherapi.com/v1/forecast.json?q=${location.latitude},${location.longitude}&days=${MAX_WEATHER_DAYS + 1}&key=${WEATHER_API_KEY}`);
 }
 
 async function populateHourlyWeatherContent(weatherRow, weatherContent, hourlyForecast) {
@@ -238,7 +213,7 @@ function addWeatherDayOrTime(col, time) {
     col.addSpacer();
     const timeLabel = col.addText(time);
     col.addSpacer();
-    timeLabel.font = new Font('Menlo', 8);
+    timeLabel.font = DEFAULT_FONT_SMALL;
     timeLabel.textColor = Color.white();
     timeLabel.centerAlignText();
     timeLabel.lineLimit = 1;
@@ -257,7 +232,7 @@ function addWeatherTemp(col, temp) {
     col.addSpacer();
     const tempLabel = col.addText(tempValueInt.toString());
     col.addSpacer();
-    tempLabel.font = new Font('Menlo-Bold', 10);
+    tempLabel.font = DEFAULT_FONT;
 
     if (temp <= 0) tempLabel.textColor = new Color('#5554d9');
     else if (temp < 8) tempLabel.textColor = '#2c9aff';
@@ -275,7 +250,7 @@ function addWeatherRain(col, chance, precip_mm) {
     col.addSpacer();
     const rainLabel = col.addText(precip_mm.toString());
     col.addSpacer();
-    rainLabel.font = new Font('Menlo-Bold', 10);
+    rainLabel.font = DEFAULT_FONT_BOLD;
 
     if (precip_mm >= 0) rainLabel.textColor = new Color('#5ac6f7');
     else rainLabel.textColor = Color.gray();
@@ -285,6 +260,25 @@ function addWeatherRain(col, chance, precip_mm) {
 }
 
 await populateWeatherContent();
+
+
+
+sectionSeparator();
+
+
+
+// **********************************************
+// *********** Begin footer section *************
+// **********************************************
+const footer = widget.addStack();
+
+footer.addSpacer();
+const lastUpdatedText = footer.addText(`Updated: ${new Date().toLocaleTimeString('en-GB', { hour: 'numeric', minute: 'numeric' })}`); 
+footer.addSpacer();
+lastUpdatedText.font = DEFAULT_FONT;
+lastUpdatedText.textColor = Color.lightGray();
+lastUpdatedText.lineLimit = 1;
+lastUpdatedText.centerAlignText();
 
 
 // Populate widget
