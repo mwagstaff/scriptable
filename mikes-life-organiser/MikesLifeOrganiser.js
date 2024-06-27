@@ -30,14 +30,19 @@ const REVERSE_JOURNEY_AFTER_TIME = '12:00';
 const MAX_TRAINS = 4;
 
 // Bromley Bins config
-const BROMLEY_BINS_API_URL = 'http://mikes-macbook-air.local:3004/api/v1/bin/3642936/bins_for_tomorrow';
+const BROMLEY_BINS_API_URL = 'https://waste-collection.fly.dev/api/v1/bin/3642936/next_collections';
 const BINS_OF_INTEREST = ['Paper & Cardboard', 'Mixed Recycling (Cans, Plastics & Glass)', 'Non-Recyclable Refuse'];
 const BIN_ICONS = ['📦', '♻️', '🗑️'];
 
-// General config
+// Fonts
 const DEFAULT_FONT = new Font('Menlo', 10);
-const DEFAULT_FONT_LARGE = new Font('Menlo', 12); 
 const DEFAULT_FONT_BOLD = new Font('Menlo-Bold', 10);
+const DEFAULT_FONT_LARGE = new Font('Menlo', 12); 
+const DEFAULT_FONT_BINS_TOMORROW = new Font('Menlo-Bold', 15);
+
+// Request timeouts (in seconds)
+const DEFAULT_REQUEST_TIMEOUT_SECONDS = 10;
+const BINS_REQUEST_TIMEOUT_SECONDS = 20;
 
 
 // **********************************************
@@ -118,7 +123,7 @@ async function getLocation(retryCount = 0) {
         return location;
     }
     catch (error) {
-        log(`Unable to get location data (${retryCount}): ${error}`);
+        console.error(`Unable to get location data (${retryCount}): ${error}`);
         if (retryCount < 5) {
             return await getLocation(retryCount + 1);
         }
@@ -130,6 +135,19 @@ async function getLocation(retryCount = 0) {
 function getTimeLabel() {
     const currentTime = new Date().toLocaleTimeString('en-GB', { hour: 'numeric', minute: 'numeric' });
     return currentTime.substring(0, 5);
+}
+
+// Returns the JSON for the given URL
+async function getJson(url, timeout = DEFAULT_REQUEST_TIMEOUT_SECONDS) {
+    try {
+        const request = new Request(url);
+        request.timeoutInterval = timeout;
+        return await request.loadJSON();
+    }
+    catch (error) {
+        console.error(`Unable to get JSON data from ${url}: ${error}`);
+        return undefined;
+    }
 }
 
 
@@ -163,10 +181,18 @@ sectionSeparator();
 
 let teamLogos = {};
 
-const fixturesRequest = new Request(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures`);
-const resultsRequest = new Request(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results`);
+// const fixturesRequest = new Request(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures`);
+// const resultsRequest = new Request(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results`);
 
-const [fixturesJson, resultsJson] = await Promise.all([fixturesRequest.loadJSON(), resultsRequest.loadJSON()]);
+// fixturesRequest.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
+// resultsRequest.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
+
+// const [fixturesJson, resultsJson] = await Promise.all([fixturesRequest.loadJSON(), resultsRequest.loadJSON()]);
+
+const [fixturesJson, resultsJson] = await Promise.all([
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures`),
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results`)
+]);
 
 const matches = await getMatches();
 if (matches.length > 0) {
@@ -177,26 +203,30 @@ async function getMatches() {
     let matches = [];
 
     // Get today's results first
-    for (const match of resultsJson) {
-        // If the match date is today's date, then add it to the list
-        const todaysDate = new Date().toISOString().split('T')[0];
-        if (match.date === todaysDate) {
-            match.friendlyDateTime = 'Today';
-            matches.push(match);
+    if (resultsJson && resultsJson.length > 0) {
+        for (const match of resultsJson) {
+            // If the match date is today's date, then add it to the list
+            const todaysDate = new Date().toISOString().split('T')[0];
+            if (match.date === todaysDate) {
+                match.friendlyDateTime = 'Today';
+                matches.push(match);
+            }
         }
     }
 
-    for (const match of fixturesJson) {
-        // Check if the matches array already contains a match with the same ID, i.e. we already have a result
-        // If there's already a result, don't add the corresponding fixture
-        const matchIndex = matches.findIndex(m => m.id === match.id);
-        if (matchIndex === -1 && match.friendlyDateTime) {
-            matches.push(match);
-        }
+    if (fixturesJson && fixturesJson.length > 0) {
+        for (const match of fixturesJson) {
+            // Check if the matches array already contains a match with the same ID, i.e. we already have a result
+            // If there's already a result, don't add the corresponding fixture
+            const matchIndex = matches.findIndex(m => m.id === match.id);
+            if (matchIndex === -1 && match.friendlyDateTime) {
+                matches.push(match);
+            }
 
-        // If we've reached the maximum number of matches, then stop
-        if (matches.length >= MAX_MATCHES) {
-            break;
+            // If we've reached the maximum number of matches, then stop
+            if (matches.length >= MAX_MATCHES) {
+                break;
+            }
         }
     }
 
@@ -207,24 +237,31 @@ async function getMatches() {
     // Use Promises.all to set the team logos for all teams
     await Promise.all(uniqueTeams.map(team => setTeamLogos(team)));
 
-    return matches.slice(0, MAX_MATCHES);
+    return matches.length > 0 ? matches.slice(0, MAX_MATCHES) : [];
 }
 
 async function setTeamLogos(teamName) {
     if (!teamLogos[teamName]) {
         const imageUrl = await getTeamLogoPath(teamName);
-        await setTeamLogoImage(teamName, `${FOOTBALL_SERVER_URI_DOMAIN}${imageUrl}`);
+        if (imageUrl) {
+            await setTeamLogoImage(teamName, `${FOOTBALL_SERVER_URI_DOMAIN}${imageUrl}`);
+        }
+        else {
+            await setTeamLogoImage(teamName, `${FOOTBALL_SERVER_URI_DOMAIN}/icons/team-logos/_noLogo.png`);
+        }
     }
 }
 
 async function getTeamLogoPath(teamName) {
-    const request = new Request(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/teams/${teamName}/logo`);
-    const logoJson = await request.loadJSON();
-    return logoJson.logoPath;
+    const logoJson = await getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/teams/${teamName}/logo`);
+    if (logoJson && logoJson.logoPath) {
+        return logoJson.logoPath;
+    }
 }
 
 async function setTeamLogoImage(teamName, imageUrl) {
     const request = new Request(imageUrl);
+    request.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
     const image = await request.loadImage();
     teamLogos[teamName] = image;
 }
@@ -241,29 +278,22 @@ async function populateFootballContent(matches) {
 
         // Fixture date
         let matchDateLabel = undefined;
-        log('Match date: ' + match.date);
         if (i === 0 || matches[i - 1].friendlyDateTime !== currentMatchDate) {
-            log('New date');
             if (isToday(new Date(match.date))) {
-                log('Adding today');
                 matchDateLabel = row.addText(getTextFormattedForListWidget('Today', 10));
-                log('Added today');
             }
             else if (isTomorrow(new Date(match.date))) {
-                log('Adding tomorrow');
                 matchDateLabel = row.addText(getTextFormattedForListWidget('Tomorrow', 10));
             }
             else {
                 // Get the date in the format 'Mon, 29/06'
                 const dateString = new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'numeric' }).replace(',', '');
-                log('Adding date: ' + dateString);
                 matchDateLabel = row.addText(getTextFormattedForListWidget(dateString, 10));
             }
             setTextAttributesForDate(new Date(match.date), matchDateLabel);
             
         }
         else {
-            log('Skipping date');
             matchDateLabel = row.addText(getTextFormattedForListWidget(' ', 10));
         }
         matchDateLabel.font = DEFAULT_FONT;
@@ -272,7 +302,6 @@ async function populateFootballContent(matches) {
         row.addSpacer(5);
 
         // Match time (either in-play or kick-off time)
-        log('Match time')
         let matchTime = '';
         if (match.timeLabel) {
             matchTime = match.timeLabel;
@@ -280,7 +309,6 @@ async function populateFootballContent(matches) {
         else if (match.kickOffTime) {
             matchTime = match.kickOffTime;
         }
-        log('-> Match time: ' + matchTime);
         matchTime = getTextFormattedForListWidget(matchTime, 5);
         const matchTimeLabel = row.addText(matchTime);
         matchTimeLabel.font = DEFAULT_FONT;
@@ -502,9 +530,13 @@ async function populateWeatherContent() {
 }
 
 async function getForecastData(location) {
-    const url = `https://api.weatherapi.com/v1/forecast.json?q=${location.latitude},${location.longitude}&days=${MAX_WEATHER_DAYS + 1}&key=${WEATHER_API_KEY}`;
-    const weatherRequest = new Request(url);
-    return await weatherRequest.loadJSON();
+    // TODO: Remove
+    // const url = `https://api.weatherapi.com/v1/forecast.json?q=${location.latitude},${location.longitude}&days=${MAX_WEATHER_DAYS + 1}&key=${WEATHER_API_KEY}`;
+    // const weatherRequest = new Request(url);
+    // weatherRequest.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
+    // return await weatherRequest.loadJSON();
+
+    return await getJson(`https://api.weatherapi.com/v1/forecast.json?q=${location.latitude},${location.longitude}&days=${MAX_WEATHER_DAYS + 1}&key=${WEATHER_API_KEY}`);
 }
 
 async function populateHourlyWeatherContent(weatherRow, weatherContent, hourlyForecast) {
@@ -584,6 +616,7 @@ async function populateWeatherContentCols(weatherRow, weatherContent) {
 async function getForecastIcon(iconUriSuffix) {
     const imageUri = `https:${iconUriSuffix}`;
     const request = new Request(imageUri);
+    request.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
     const image = await request.loadImage();
     return image;
 }
@@ -684,8 +717,12 @@ async function getTrainsData() {
         url = `https://train-track-api.fly.dev/api/v1/departures/from/${TO_STATION}/to/${FROM_STATION}`;
     }
 
-    const request = new Request(url);
-    return await request.loadJSON();
+    return await getJson(url);
+
+    // TODO: Remove
+    // const request = new Request(url);
+    // request.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
+    // return await request.loadJSON();
 }
 
 function populateTrainsRowContent(trainsRow, departures) {
@@ -834,22 +871,53 @@ sectionSeparator();
 // *********** Begin bins section ***************
 // **********************************************
 
-async function getBinIconsLabel() {
-    const binsRequest = new Request(BROMLEY_BINS_API_URL);
-    const binsForTomorrow = await binsRequest.loadJSON();
+async function populateBinsContent(footer) {
 
-    let binContent = '';
-    if (binsForTomorrow && binsForTomorrow.length > 0) {
-        let binIndex = 0;
-        for (const bin of binsForTomorrow) {
-            if (BINS_OF_INTEREST.includes(bin)) {
-                binContent += BIN_ICONS[binIndex];
-                binIndex++;
-            }
-        }
+    const binsCol = footer.addStack();
+    
+    let binsLabel = '';
+    const nextCollections = await getJson(BROMLEY_BINS_API_URL);
+    if (nextCollections && nextCollections.nextCollectionDateDay && nextCollections.bins && nextCollections.bins.length > 0) {
+        const collectionDay = getCollectionDay(nextCollections);
+        binsLabel = collectionDay + ': ';
+        binsLabel += nextCollections.bins.map(bin => getBinIcon(bin)).join('');
+        const binsText = binsCol.addText(binsLabel);
+        setTextAttributesForBinCollectionDate(new Date(nextCollections.nextCollectionDate), binsText);
     }
+    binsCol.url = 'dev.skynolimit.bromleybins://';
+    footer.addStack(binsCol);
+}
 
-    return binContent;
+function getCollectionDay(nextCollections) {
+    if (isToday(new Date(nextCollections.nextCollectionDate)))
+        return 'Today';
+    else if (isTomorrow(new Date(nextCollections.nextCollectionDate)))
+        return 'Tomorrow';
+    else
+        return nextCollections.nextCollectionDateDay;
+}
+
+function getBinIcon(bin) {
+    if (BINS_OF_INTEREST.includes(bin)) {
+        return BIN_ICONS[BINS_OF_INTEREST.indexOf(bin)];
+    }
+    return '';
+}
+
+// Sets font attributes the given date - white bold for tomorrow, white regular for today, gray regular for other
+function setTextAttributesForBinCollectionDate(date, label) {
+    if (isTomorrow(date)) {
+        label.textColor = Color.white();
+        label.font = DEFAULT_FONT_BINS_TOMORROW;
+    }
+    else if (isToday(date)) {
+        label.textColor = Color.lightGray();
+        label.font = DEFAULT_FONT;
+    }
+    else {
+        label.textColor = Color.gray();
+        label.font = DEFAULT_FONT;
+    }
 }
 
 
@@ -858,21 +926,20 @@ async function getBinIconsLabel() {
 // *********** Begin footer section *************
 // **********************************************`
 const footer = widget.addStack();
-footer.addSpacer();
-const footerText = footer.addText(`Updated: ${new Date().toLocaleTimeString('en-GB', { hour: 'numeric', minute: 'numeric' })}`); 
-footer.addSpacer();
-footerText.font = DEFAULT_FONT_LARGE;
-footerText.textColor = Color.white();
-footerText.lineLimit = 1;
-footerText.centerAlignText();
 
-const binIconsLabel = await getBinIconsLabel();
-if (binIconsLabel.length > 0) {
-    const binsContent = footer.addStack();
-    const binText = binsContent.addText(binIconsLabel);
-    binText.font = new Font('Menlo-Bold', 14);
-    binsContent.url = 'dev.skynolimit.bromleybins://';
-}
+await populateBinsContent(footer);
+
+const lastUpdatedCol = footer.addStack();
+lastUpdatedCol.addSpacer();
+const lastUpdatedText = lastUpdatedCol.addText(`Updated: ${new Date().toLocaleTimeString('en-GB', { hour: 'numeric', minute: 'numeric' })}`); 
+// lastUpdatedCol.addSpacer();
+lastUpdatedText.font = DEFAULT_FONT_LARGE;
+lastUpdatedText.textColor = Color.white();
+lastUpdatedText.lineLimit = 1;
+lastUpdatedText.rightAlignText();
+footer.addStack(lastUpdatedCol);
+
+widget.addStack(footer);
 
 Script.setWidget(widget);
 widget.presentLarge();
