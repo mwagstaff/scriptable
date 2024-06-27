@@ -1,89 +1,32 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
 // icon-color: deep-purple; icon-glyph: futbol;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
-// icon-color: deep-gray; icon-glyph: magic;
 
-const DEVICE_ID = 'D1B468E9-AC32-42C1-BB83-B7B60D3DA094'
-const MAX_MATCHES = 13; // TODO: Base this on widgetFamily (i.e. small vs large, etc.)?
+// Your device ID (which you can get at the bottom of the settings screen in the Top Scores app)
+const DEVICE_ID = 'DEVICE_ID_SECRET';
 
-const SERVER_URI_DOMAIN = 'https://football-scores-api.fly.dev';
+// Maximum number of matches to show
+const MAX_MATCHES = 15;
 
-let teamLogos = {};
+// API server URI
+const FOOTBALL_SERVER_URI_DOMAIN = 'https://football-scores-api.fly.dev';
 
+// Request timeouts (in seconds)
+const DEFAULT_REQUEST_TIMEOUT_SECONDS = 10;
+
+// Fonts
+const DEFAULT_FONT = new Font('Menlo', 10);
+const DEFAULT_FONT_BOLD = new Font('Menlo-Bold', 10);
+
+
+
+
+// **********************************************
+// *********** Begin globals ********************
+// **********************************************
+
+// Global variables
 let widget = new ListWidget();
-widget.url ='dev.skynolimit.topscores://'; 
-
-
-// TODO: Reinstate this
-let fixturesRequest = new Request(`${SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures?limit=${MAX_MATCHES}`);
-let resultsRequest = new Request(`${SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results?limit=${MAX_MATCHES}`);
-
-const [fixturesJson, resultsJson] = await Promise.all([fixturesRequest.loadJSON(), resultsRequest.loadJSON()]);
-
-const matches = await getMatches();
-if (matches.length > 0) {
-    setListWidgetContent(matches);
-}
-
-async function getMatches() {
-    let matches = [];
-
-    // Get today's results first
-    for (const match of resultsJson) {
-        // If the match date is today's date, then add it to the list
-        const todaysDate = new Date().toISOString().split('T')[0];
-        if (match.date === todaysDate) {
-            match.friendlyDateTime = 'Today';
-            matches.push(match);
-        }
-    }
-
-    for (const match of fixturesJson) {
-        // Check if the matches array already contains a match with the same ID, i.e. we already have a result
-        // If there's already a result, don't add the corresponding fixture
-        const matchIndex = matches.findIndex(m => m.id === match.id);
-        if (matchIndex === -1 && match.friendlyDateTime) {
-            matches.push(match);
-        }
-
-        // If we've reached the maximum number of matches, then stop
-        if (matches.length >= MAX_MATCHES) {
-            break;
-        }
-    }
-
-    // Use Promises.all to set the team logos for all matches
-    await Promise.all(matches.map(match => setTeamLogos(match)));
-
-    return matches.slice(0, MAX_MATCHES);
-}
-
-async function setTeamLogos(match) {
-    const homeTeamName = match.homeTeam.names.displayName;
-    const awayTeamName = match.awayTeam.names.displayName;
-    if (!teamLogos[homeTeamName]) {
-        const imageUrl = await getTeamLogoPath(homeTeamName);
-        await setTeamLogoImage(homeTeamName, `${SERVER_URI_DOMAIN}${imageUrl}`);
-    }
-    if (!teamLogos[awayTeamName]) {
-        const imageUrl = await getTeamLogoPath(awayTeamName);
-        await setTeamLogoImage(awayTeamName, `${SERVER_URI_DOMAIN}${imageUrl}`);
-    }
-}
-
-async function getTeamLogoPath(teamName) {
-    const request = new Request(`${SERVER_URI_DOMAIN}/api/v1/teams/${teamName}/logo`);
-    const logoJson = await request.loadJSON();
-    return logoJson.logoPath;
-}
-
-async function setTeamLogoImage(teamName, imageUrl) {
-    const request = new Request(imageUrl);
-    const image = await request.loadImage();
-    teamLogos[teamName] = image;
-}
 
 // Truncate text to fit in a list widget cell, and pad with spaces to the right
 function getTextFormattedForListWidget(text, length) {
@@ -91,61 +34,204 @@ function getTextFormattedForListWidget(text, length) {
     return truncatedText.padEnd(length, ' ');
 }
 
-// Centers header text by adding padding at the start relative to the length of the text
-function getHeaderCentered(text) {
-    switch (text) {
-        case 'Today':
-            return 'Today'.padStart(23, ' ');
-        case 'Tomorrow':
-            return 'Tomorrow'.padStart(25, ' ');
-        case 'Monday':
-            return 'Monday'.padStart(24, ' ');
-        case 'Tuesday':
-            return 'Tuesday'.padStart(23, ' ');
-        case 'Wednesday':
-            return 'Wednesday'.padStart(25, ' ');
-        case 'Thursday':
-            return 'Thursday'.padStart(25, ' ');
-        case 'Friday':
-            return 'Friday'.padStart(24, ' ');
-        case 'Saturday':
-            return 'Saturday'.padStart(25, ' ');
-        case 'Sunday':
-            return 'Sunday'.padStart(24, ' ');
-        default:
-            return text.padStart(24, ' ');
+// Show a section separator (horizontal gray line)
+function sectionSeparator() {
+    widget.addSpacer(10);
+    let hline = widget.addStack();
+    hline.size = new Size(0, 1);
+    hline.backgroundColor = Color.gray();
+    hline.addSpacer();
+    widget.addSpacer(10);
+}
+
+// Show a date separator (horizontal dark gray line)
+function dateSeparator() {
+    widget.addSpacer(5);
+    let hline = widget.addStack();
+    hline.size = new Size(0, 1);
+    hline.backgroundColor = Color.darkGray();
+    hline.addSpacer();
+    widget.addSpacer(5);
+}
+
+// Returns true if the given date is today
+function isToday(date) {
+    return date.toLocaleDateString() === new Date().toLocaleDateString();
+}
+
+// Returns true if the given date is tomorrow
+function isTomorrow(date) {
+    return date.toLocaleDateString() === new Date(new Date().getTime() + (1000 * 60 * 60 * 24)).toLocaleDateString();
+}
+
+// Sets font attributes the given date - white bold for today, white regular for tomorrow, gray regular for other
+function setTextAttributesForDate(date, label) {
+    if (isToday(date)) {
+        label.textColor = Color.white();
+        label.font = DEFAULT_FONT_BOLD;
+    }
+    else if (isTomorrow(date)) {
+        label.textColor = Color.lightGray();
+        label.font = DEFAULT_FONT;
+    }
+    else {
+        label.textColor = Color.gray();
+        label.font = DEFAULT_FONT;
     }
 }
 
-// Returns the current time in HH:MM format
-function getTimeLabel() {
-    const currentTime = new Date().toISOString().split('T')[1];
-    return currentTime.substring(0, 5);
+// Returns the JSON for the given URL
+async function getJson(url, timeout = DEFAULT_REQUEST_TIMEOUT_SECONDS) {
+    try {
+        const request = new Request(url);
+        request.timeoutInterval = timeout;
+        return await request.loadJSON();
+    }
+    catch (error) {
+        console.error(`Unable to get JSON data from ${url}: ${error}`);
+        return undefined;
+    }
 }
 
-async function setListWidgetContent(matches) {
 
-    let previousMatchDate = matches && matches.length >= 0 ? matches[0].friendlyDateTime : null;
+
+// **********************************************
+// *********** Begin main code  *****************
+// **********************************************
+
+let teamLogos = {};
+
+widget.url = 'dev.skynolimit.topscores://';
+
+let nextRefresh = Date.now() + (1000 * 30) // Optimistically aim for a 30 second refresh (in reality, iOS will only refresh every 10-15 minutes)
+widget.refreshAfterDate = new Date(nextRefresh)
+
+const [fixturesJson, resultsJson] = await Promise.all([
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures`),
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results`)
+]);
+
+// Returns the JSON for the given URL
+async function getJson(url, timeout = DEFAULT_REQUEST_TIMEOUT_SECONDS) {
+    try {
+        const request = new Request(url);
+        request.timeoutInterval = timeout;
+        return await request.loadJSON();
+    }
+    catch (error) {
+        console.error(`Unable to get JSON data from ${url}: ${error}`);
+        return undefined;
+    }
+}
+
+const matches = await getMatches();
+if (matches.length > 0) {
+    populateFootballContent(matches);
+}
+
+async function getMatches() {
+    let matches = [];
+
+    // Get today's results first
+    if (resultsJson && resultsJson.length > 0) {
+        for (const match of resultsJson) {
+            // If the match date is today's date, then add it to the list
+            const todaysDate = new Date().toISOString().split('T')[0];
+            if (match.date === todaysDate) {
+                match.friendlyDateTime = 'Today';
+                matches.push(match);
+            }
+        }
+    }
+
+    if (fixturesJson && fixturesJson.length > 0) {
+        for (const match of fixturesJson) {
+            // Check if the matches array already contains a match with the same ID, i.e. we already have a result
+            // If there's already a result, don't add the corresponding fixture
+            const matchIndex = matches.findIndex(m => m.id === match.id);
+            if (matchIndex === -1 && match.friendlyDateTime) {
+                matches.push(match);
+            }
+
+            // If we've reached the maximum number of matches, then stop
+            if (matches.length >= MAX_MATCHES) {
+                break;
+            }
+        }
+    }
+
+    // Get a unique list of teams
+    const teams = matches.map(match => match.homeTeam.names.displayName).concat(matches.map(match => match.awayTeam.names.displayName));
+    const uniqueTeams = [...new Set(teams)];
+
+    // Use Promises.all to set the team logos for all teams
+    await Promise.all(uniqueTeams.map(team => setTeamLogos(team)));
+
+    return matches.length > 0 ? matches.slice(0, MAX_MATCHES) : [];
+}
+
+async function setTeamLogos(teamName) {
+    if (!teamLogos[teamName]) {
+        const imageUrl = await getTeamLogoPath(teamName);
+        if (imageUrl) {
+            await setTeamLogoImage(teamName, `${FOOTBALL_SERVER_URI_DOMAIN}${imageUrl}`);
+        }
+        else {
+            await setTeamLogoImage(teamName, `${FOOTBALL_SERVER_URI_DOMAIN}/icons/team-logos/_noLogo.png`);
+        }
+    }
+}
+
+async function getTeamLogoPath(teamName) {
+    const logoJson = await getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/teams/${teamName}/logo`);
+    if (logoJson && logoJson.logoPath) {
+        return logoJson.logoPath;
+    }
+}
+
+async function setTeamLogoImage(teamName, imageUrl) {
+    const request = new Request(imageUrl);
+    request.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
+    const image = await request.loadImage();
+    teamLogos[teamName] = image;
+}
+
+
+async function populateFootballContent(matches) {
 
     for (let i = 0; i < matches.length; i++) {
 
         const match = matches[i];
-
-        // Date header
         let currentMatchDate = matches[i].friendlyDateTime;
-        if (i === 0 || currentMatchDate !== previousMatchDate) {
-            const dateHeader = widget.addText(getHeaderCentered(currentMatchDate));
-            dateHeader.font = new Font('Menlo', 12);
-            dateHeader.textColor = Color.gray();
-            widget.addSpacer(5);
-            widget.addStack(dateHeader);
-            widget.addSpacer(2);
-            previousMatchDate = currentMatchDate;
-        }
 
         const row = widget.addStack();
 
-        // Fixture or match time
+        // Fixture date
+        let matchDateLabel = undefined;
+        if (i === 0 || matches[i - 1].friendlyDateTime !== currentMatchDate) {
+            if (isToday(new Date(match.date))) {
+                matchDateLabel = row.addText(getTextFormattedForListWidget('Today', 10));
+            }
+            else if (isTomorrow(new Date(match.date))) {
+                matchDateLabel = row.addText(getTextFormattedForListWidget('Tomorrow', 10));
+            }
+            else {
+                // Get the date in the format 'Mon, 29/06'
+                const dateString = new Date(match.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'numeric' }).replace(',', '');
+                matchDateLabel = row.addText(getTextFormattedForListWidget(dateString, 10));
+            }
+            setTextAttributesForDate(new Date(match.date), matchDateLabel);
+            
+        }
+        else {
+            matchDateLabel = row.addText(getTextFormattedForListWidget(' ', 10));
+        }
+        matchDateLabel.font = DEFAULT_FONT;
+        matchDateLabel.rightAlignText();
+        matchDateLabel.lineLimit = 1;
+        row.addSpacer(5);
+
+        // Match time (either in-play or kick-off time)
         let matchTime = '';
         if (match.timeLabel) {
             matchTime = match.timeLabel;
@@ -155,15 +241,14 @@ async function setListWidgetContent(matches) {
         }
         matchTime = getTextFormattedForListWidget(matchTime, 5);
         const matchTimeLabel = row.addText(matchTime);
-        matchTimeLabel.font = new Font('Menlo', 12);
-        matchTimeLabel.textColor = Color.gray();
+        matchTimeLabel.font = DEFAULT_FONT;
         matchTimeLabel.rightAlignText();
         matchTimeLabel.lineLimit = 1;
         row.addSpacer(5);
 
         // Home team name
-        const homeTeam = row.addText(getTextFormattedForListWidget(match.homeTeam.names.displayName, 8));
-        homeTeam.font = new Font('Menlo', 12);
+        const homeTeam = row.addText(getTextFormattedForListWidget(match.homeTeam.names.displayName, 7));
+        homeTeam.font = DEFAULT_FONT;
         homeTeam.rightAlignText();
         homeTeam.lineLimit = 1;
         row.addSpacer(10);
@@ -179,13 +264,13 @@ async function setListWidgetContent(matches) {
             homeTeamScore = getTextFormattedForListWidget(match.homeTeam.score.toString(), 2);
         }
         const homeTeamScoreLabel = row.addText(homeTeamScore);
-        homeTeamScoreLabel.font = new Font('Menlo', 12);
+        homeTeamScoreLabel.font = DEFAULT_FONT;
         homeTeamScoreLabel.rightAlignText();
         homeTeamScoreLabel.lineLimit = 1;
 
         // Score line separator
         const scoreSeparator = row.addText('- ');
-        scoreSeparator.font = new Font('Menlo', 12);
+        scoreSeparator.font = DEFAULT_FONT;
         scoreSeparator.centerAlignText();
         scoreSeparator.lineLimit = 1;
 
@@ -195,7 +280,7 @@ async function setListWidgetContent(matches) {
             awayTeamScore = getTextFormattedForListWidget(match.awayTeam.score.toString(), 2);
         }
         const awayTeamScoreLabel = row.addText(awayTeamScore);
-        awayTeamScoreLabel.font = new Font('Menlo', 12);
+        awayTeamScoreLabel.font = DEFAULT_FONT;
         awayTeamScoreLabel.leftAlignText();
         awayTeamScoreLabel.lineLimit = 1;
         row.addSpacer(2);
@@ -206,40 +291,50 @@ async function setListWidgetContent(matches) {
         row.addSpacer(10);
 
         // Away team name
-        const awayTeam = row.addText(getTextFormattedForListWidget(match.awayTeam.names.displayName, 8));
-        awayTeam.font = new Font('Menlo', 12);
+        const awayTeam = row.addText(getTextFormattedForListWidget(match.awayTeam.names.displayName, 7));
+        awayTeam.font = DEFAULT_FONT;
         awayTeam.leftAlignText();
         awayTeam.lineLimit = 1;
         row.addSpacer(5);
 
         // TV channel
         if (match.tvInfo && match.tvInfo.channelInfo && match.tvInfo.channelInfo.fullName && typeof match.tvInfo.channelInfo.fullName === 'string') {
-            const fixtureChannel = row.addText(getTextFormattedForListWidget(match.tvInfo.channelInfo.fullName, 8));
-            fixtureChannel.font = new Font('Menlo', 12);
+            const fixtureChannel = row.addText(getTextFormattedForListWidget(match.tvInfo.channelInfo.fullName, 7));
+            fixtureChannel.font = DEFAULT_FONT;
             fixtureChannel.textColor = Color.gray();
             fixtureChannel.leftAlignText();
             fixtureChannel.lineLimit = 1;
         }
 
-
+        // Add a date separator line if necessary 
         if (i < matches.length - 1 && matches[i + 1].friendlyDateTime !== currentMatchDate) {
-            widget.addSpacer(10);
+            dateSeparator();
         }
 
+        row.url = 'dev.skynolimit.topscores://';
         widget.addStack(row);
     }
 
-    // Add footer row
-    widget.addSpacer(10);
-    // Get the current time in HH:MM format
-    const footerText = widget.addText(`Updated: ${getTimeLabel()}`.padStart(38, ' '));
-    footerText.font = new Font('Menlo', 8);
-    footerText.textColor = Color.gray();
-    footerText.lineLimit = 1;
 }
 
-let nextRefresh = Date.now() + (1000 * 30) // Optimistically aim for a 30 second refresh (in reality, iOS will only refresh every 10-15 minutes)
-widget.refreshAfterDate = new Date(nextRefresh)
+
+
+sectionSeparator();
+
+
+
+// **********************************************
+// *********** Begin footer section *************
+// **********************************************
+const footer = widget.addStack();
+
+footer.addSpacer();
+const lastUpdatedText = footer.addText(`Updated: ${new Date().toLocaleTimeString('en-GB', { hour: 'numeric', minute: 'numeric' })}`); 
+footer.addSpacer();
+lastUpdatedText.font = DEFAULT_FONT;
+lastUpdatedText.textColor = Color.lightGray();
+lastUpdatedText.lineLimit = 1;
+lastUpdatedText.centerAlignText();
 
 Script.setWidget(widget)
 widget.presentLarge()
