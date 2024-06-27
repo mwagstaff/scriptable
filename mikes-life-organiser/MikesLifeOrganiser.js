@@ -28,6 +28,7 @@ const FROM_STATION = 'KTH';
 const TO_STATION = 'VIC';
 const REVERSE_JOURNEY_AFTER_TIME = '12:00';
 const MAX_TRAINS = 4;
+const TRAINS_SERVER_URI_DOMAIN = 'https://train-track-api.fly.dev';
 
 // Bromley Bins config
 const BROMLEY_BINS_API_URL = 'https://waste-collection.fly.dev/api/v1/bin/3642936/next_collections';
@@ -180,14 +181,6 @@ sectionSeparator();
 // **********************************************
 
 let teamLogos = {};
-
-// const fixturesRequest = new Request(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures`);
-// const resultsRequest = new Request(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results`);
-
-// fixturesRequest.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
-// resultsRequest.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
-
-// const [fixturesJson, resultsJson] = await Promise.all([fixturesRequest.loadJSON(), resultsRequest.loadJSON()]);
 
 const [fixturesJson, resultsJson] = await Promise.all([
     getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures`),
@@ -530,12 +523,6 @@ async function populateWeatherContent() {
 }
 
 async function getForecastData(location) {
-    // TODO: Remove
-    // const url = `https://api.weatherapi.com/v1/forecast.json?q=${location.latitude},${location.longitude}&days=${MAX_WEATHER_DAYS + 1}&key=${WEATHER_API_KEY}`;
-    // const weatherRequest = new Request(url);
-    // weatherRequest.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
-    // return await weatherRequest.loadJSON();
-
     return await getJson(`https://api.weatherapi.com/v1/forecast.json?q=${location.latitude},${location.longitude}&days=${MAX_WEATHER_DAYS + 1}&key=${WEATHER_API_KEY}`);
 }
 
@@ -543,7 +530,7 @@ async function populateHourlyWeatherContent(weatherRow, weatherContent, hourlyFo
 
     for (let i = 0; i < hourlyForecast.length && weatherContent.hourly.times.length < MAX_WEATHER_HOURS; i++) {
         const forecast = hourlyForecast[i];
-        const minEpoch = (Date.now() - (1000 * 60 * 60)) / 1000; // TODO: Remove the 5!
+        const minEpoch = (Date.now() - (1000 * 60 * 60)) / 1000;
 
         // Iterate through current and future hours
         if (forecast.time_epoch && forecast.time_epoch >= minEpoch) {
@@ -709,20 +696,13 @@ async function populateTrainsContent() {
 }
 
 async function getTrainsData() {
-
     // If the current time is after the reverse journey time, then reverse the journey
-    let url = `https://train-track-api.fly.dev/api/v1/departures/from/${FROM_STATION}/to/${TO_STATION}`;
+    let url = `${TRAINS_SERVER_URI_DOMAIN}/api/v1/departures/from/${FROM_STATION}/to/${TO_STATION}`;
     const currentTime = new Date().toISOString().split('T')[1];
     if (currentTime > REVERSE_JOURNEY_AFTER_TIME) {
-        url = `https://train-track-api.fly.dev/api/v1/departures/from/${TO_STATION}/to/${FROM_STATION}`;
+        url = `${TRAINS_SERVER_URI_DOMAIN}/api/v1/departures/from/${TO_STATION}/to/${FROM_STATION}`;
     }
-
     return await getJson(url);
-
-    // TODO: Remove
-    // const request = new Request(url);
-    // request.timeoutInterval = DEFAULT_REQUEST_TIMEOUT_SECONDS;
-    // return await request.loadJSON();
 }
 
 function populateTrainsRowContent(trainsRow, departures) {
