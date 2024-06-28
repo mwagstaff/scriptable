@@ -51,6 +51,8 @@ const BINS_REQUEST_TIMEOUT_SECONDS = 20;
 // **********************************************
 
 // Global variables
+const fileManager = FileManager.local();
+const locationCacheFilePath = fileManager.joinPath(fileManager.cacheDirectory(), 'mikes_life_organiser_location.txt');
 let widget = new ListWidget();
 
 // Truncate text to fit in a list widget cell, and pad with spaces to the right
@@ -117,17 +119,38 @@ function shouldShowEvent(event) {
 
 // Returns the user's current location
 // Note we set accuracy to 100m as the default (most precise fix) can take up to 10 seconds to return
+// If we fail after 3 attempts (which seems to happen from time to time for reasons unknown), then we return the cached location data from disk
 async function getLocation(retryCount = 0) {
     try {
         let location = Location.setAccuracyToHundredMeters();
         location = await Location.current();
+        setCachedLocation(location);
         return location;
     }
     catch (error) {
-        console.error(`Unable to get location data (${retryCount}): ${error}`);
-        if (retryCount < 5) {
+        console.error(`Unable to get current location data (${retryCount}): ${error}`);
+        if (retryCount < 3) {
             return await getLocation(retryCount + 1);
         }
+        return getCachedLocation();
+    }
+}
+
+// Writes the given location data to disk
+function setCachedLocation(location) {
+    fileManager.writeString(locationCacheFilePath, JSON.stringify(location));
+
+    log(`Saved location data to ${locationCacheFilePath}`);
+    log(JSON.parse(fileManager.readString(locationCacheFilePath)));
+}
+
+// Returns the cached location data from disk
+function getCachedLocation() {
+    try {
+        return JSON.parse(fileManager.readString(locationCacheFilePath));
+    }
+    catch (error) {
+        console.error(`Unable to get cached location data from ${locationCacheFilePath}: ${error}`);
         return undefined;
     }
 }
