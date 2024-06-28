@@ -1,6 +1,6 @@
 # Bromley Bins
 
-Designed for use as a small widget, showing any bins due for collection on the following day, given a valid Bromley "bin ID".
+Designed for use as a small widget, showing the next collection date and which bins are due for collection, given a valid Bromley "bin ID".
 
 ## Installation
 
