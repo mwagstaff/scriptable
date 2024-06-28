@@ -30,6 +30,8 @@ const DEFAULT_FONT_BOLD = new Font('Menlo-Bold', 10);
 // **********************************************
 
 // Global variables
+const fileManager = FileManager.local();
+const locationCacheFilePath = fileManager.joinPath(fileManager.cacheDirectory(), 'weather_forecast_location.txt');
 let widget = new ListWidget();
 
 // Show a section separator (horizontal gray line)
@@ -107,14 +109,42 @@ async function populateWeatherContent() {
 
 }
 
-async function getLocation() {
-    log('Getting location data');
-    let location = Location.setAccuracyToHundredMeters();
-    location = await Location.current();
-    log('Location: ' + JSON.stringify(location));
-    const geocode = await Location.reverseGeocode(location.latitude, location.longitude, Device.locale());
-    location.locality = geocode[0].locality;
-    return location;
+// Returns the user's current location
+// Note we set accuracy to 100m as the default (most precise fix) can take up to 10 seconds to return
+// If we fail after 3 attempts (which seems to happen from time to time for reasons unknown), then we return the cached location data from disk
+async function getLocation(retryCount = 0) {
+    try {
+        let location = Location.setAccuracyToHundredMeters();
+        location = await Location.current();
+        setCachedLocation(location);
+        return location;
+    }
+    catch (error) {
+        console.error(`Unable to get current location data (${retryCount}): ${error}`);
+        if (retryCount < 3) {
+            return await getLocation(retryCount + 1);
+        }
+        return getCachedLocation();
+    }
+}
+
+// Writes the given location data to disk
+function setCachedLocation(location) {
+    fileManager.writeString(locationCacheFilePath, JSON.stringify(location));
+
+    log(`Saved location data to ${locationCacheFilePath}`);
+    log(JSON.parse(fileManager.readString(locationCacheFilePath)));
+}
+
+// Returns the cached location data from disk
+function getCachedLocation() {
+    try {
+        return JSON.parse(fileManager.readString(locationCacheFilePath));
+    }
+    catch (error) {
+        console.error(`Unable to get cached location data from ${locationCacheFilePath}: ${error}`);
+        return undefined;
+    }
 }
 
 async function getForecastData(location) {
@@ -126,7 +156,7 @@ async function populateHourlyWeatherContent(weatherRow, weatherContent, hourlyFo
 
     for (let i = 0; i < hourlyForecast.length && weatherContent.hourly.times.length < MAX_WEATHER_HOURS; i++) {
         const forecast = hourlyForecast[i];
-        const minEpoch = (Date.now() - (1000 * 60 * 60 * 5)) / 1000;
+        const minEpoch = (Date.now() - (1000 * 60 * 60)) / 1000;
 
         // Iterate through current and future hours
         if (forecast.time_epoch && forecast.time_epoch >= minEpoch) {
