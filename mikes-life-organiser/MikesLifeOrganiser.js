@@ -6,8 +6,11 @@
 // *********** Begin widget config **************
 // **********************************************
 
+// Reminders config
+const REMINDERS_COLOUR = new Color('#168eff');
+const GROCERY_COLOUR = new Color('#ff9913');
+
 // Football config
-const DEVICE_ID = 'DEVICE_ID_SECRET'
 const MAX_MATCHES = 5;
 const FOOTBALL_SERVER_URI_DOMAIN = 'https://football-scores-api.fly.dev';
 
@@ -18,7 +21,7 @@ const CALENDAR_TAGS = ['', '🎉', ''];
 const DO_NOT_SHOW_EVENTS = ['laundry'];
 
 // Weather config
-const WEATHER_API_KEY = 'WEATHER_API_KEY_SECRET';
+const WEATHER_API_KEY = 'b7c507191e034a5791a124926242206';
 const MAX_WEATHER_HOURS = 4;
 const MAX_WEATHER_DAYS = 4;
 
@@ -63,12 +66,12 @@ function getTextFormattedForListWidget(text, length) {
 
 // Show a section separator (horizontal gray line)
 function sectionSeparator() {
-    widget.addSpacer(10);
+    widget.addSpacer(6);
     let hline = widget.addStack();
     hline.size = new Size(0, 1);
     hline.backgroundColor = Color.gray();
     hline.addSpacer();
-    widget.addSpacer(10);
+    widget.addSpacer(8);
 }
 
 // Show a date separator (horizontal dark gray line)
@@ -188,11 +191,77 @@ widget.refreshAfterDate = new Date(nextRefresh);
 // **********************************************
 // *********** Begin header section *************
 // **********************************************`
-const headerText = widget.addText(new Date().toLocaleDateString('en-GB', { weekday: 'long', month: 'long', day: 'numeric' }));
-headerText.font = DEFAULT_FONT_LARGE;
-headerText.textColor = Color.white();
-headerText.lineLimit = 1;
-headerText.centerAlignText();
+const header = widget.addStack();
+
+const dateCol = header.addStack();
+const dateText = header.addText(new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }));
+dateText.font = DEFAULT_FONT_LARGE;
+dateText.textColor = Color.white();
+dateText.lineLimit = 1;
+dateText.leftAlignText();
+header.addStack(dateCol);
+
+await populateRemindersContent('Reminders', REMINDERS_COLOUR);
+await populateRemindersContent('Grocery', GROCERY_COLOUR);
+
+async function populateRemindersContent(category, colour) {
+    const reminders = await getReminders(category);
+    const remindersCol = header.addStack();
+
+    if (reminders.length > 0) {
+        remindersCol.url = `x-apple-reminderkit://REMCDReminder/${reminders[0].identifier}`;
+        addReminderInfo(remindersCol, reminders, colour);
+        header.addStack(remindersCol);
+    }
+}
+
+async function getReminders(category) {
+    let [incompleteReminders, dueTodayReminders, scheduledReminders] = await Promise.all([Reminder.allIncomplete(), Reminder.allDueToday(), Reminder.scheduled()]);
+
+    // Filter on overdue reminders that aren't completed
+    scheduledReminders = scheduledReminders.filter(reminder => reminder.isOverdue).filter(reminder => !reminder.isCompleted);
+
+    // Filter out any incomplete reminders thta have a due date
+    incompleteReminders = incompleteReminders.filter(reminder => !reminder.dueDate);
+
+    // Filter out any due today reminders that are already completed
+    dueTodayReminders = dueTodayReminders.filter(reminder => !reminder.isCompleted);
+
+    let reminders = scheduledReminders.concat(dueTodayReminders).concat(incompleteReminders);
+
+    // Filter out reminders that are not in the target calendar (e.g. grocery list items vs reminders)
+    reminders = reminders.filter(reminder => reminder.calendar.title === category);
+
+    // Dedupe reminders by title
+    reminders = reminders.filter((reminder, index, self) => index === self.findIndex(t => t.title === reminder.title));
+
+    return reminders;
+}
+
+function addReminderInfo(remindersCol, reminders, colour) {
+    addReminder(remindersCol, reminders[0], colour);
+    if (reminders.length > 1) {
+        remindersCol.addSpacer(8);
+        addReminderCount(remindersCol, reminders.length, colour);
+    }
+}
+
+function addReminder(remindersCol, reminder, colour) {
+    remindersCol.addSpacer();
+    const reminderLabel = remindersCol.addText(reminder.title);
+    reminderLabel.font = DEFAULT_FONT_LARGE;
+    reminderLabel.textColor = colour;
+    reminderLabel.rightAlignText();
+    reminderLabel.lineLimit = 1;
+}
+
+function addReminderCount(remindersCol, count, colour) {
+    const countLabel = remindersCol.addText(`+${(count - 1).toString()}`);
+    countLabel.font = DEFAULT_FONT_LARGE;
+    countLabel.textColor = colour;
+    countLabel.rightAlignText();
+    countLabel.lineLimit = 1;
+}
 
 
 
@@ -206,8 +275,8 @@ sectionSeparator();
 let teamLogos = {};
 
 const [fixturesJson, resultsJson] = await Promise.all([
-    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures`),
-    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results`)
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/fixtures`),
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/results`)
 ]);
 
 const matches = await getMatches();
@@ -269,9 +338,14 @@ async function setTeamLogos(teamName) {
 }
 
 async function getTeamLogoPath(teamName) {
-    const logoJson = await getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/teams/${teamName}/logo`);
-    if (logoJson && logoJson.logoPath) {
-        return logoJson.logoPath;
+    if (teamName.includes('/') || teamName.includes('Winner') || teamName.includes('Loser')) {
+        return undefined;
+    }
+    else {
+        const logoJson = await getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/teams/${teamName}/logo`);
+        if (logoJson && logoJson.logoPath) {
+            return logoJson.logoPath;
+        }
     }
 }
 
@@ -282,6 +356,17 @@ async function setTeamLogoImage(teamName, imageUrl) {
     teamLogos[teamName] = image;
 }
 
+function getTeamName(teamName) {
+    if (teamName.includes('/')) {
+        return `${teamName.split('/')[0].slice(0, 3)}/${teamName.split('/')[1].slice(0, 3)}`;
+    }
+    else if (teamName.includes('Winner') || teamName.includes('Loser')) {
+        return 'TBC';
+    }
+    else {
+        return teamName;
+    }
+}
 
 async function populateFootballContent(matches) {
 
@@ -333,7 +418,7 @@ async function populateFootballContent(matches) {
         row.addSpacer(5);
 
         // Home team name
-        const homeTeam = row.addText(getTextFormattedForListWidget(match.homeTeam.names.displayName, 7));
+        const homeTeam = row.addText(getTextFormattedForListWidget(getTeamName(match.homeTeam.names.displayName), 8));
         homeTeam.font = DEFAULT_FONT;
         homeTeam.rightAlignText();
         homeTeam.lineLimit = 1;
@@ -346,7 +431,7 @@ async function populateFootballContent(matches) {
 
         // Home team score
         let homeTeamScore = getTextFormattedForListWidget('', 2);
-        if (match.homeTeam.score) {
+        if ((match.started || match.finished) && match.homeTeam.score >= 0) {
             homeTeamScore = getTextFormattedForListWidget(match.homeTeam.score.toString(), 2);
         }
         const homeTeamScoreLabel = row.addText(homeTeamScore);
@@ -362,7 +447,8 @@ async function populateFootballContent(matches) {
 
         // Away team score
         let awayTeamScore = getTextFormattedForListWidget('', 2);
-        if (match.awayTeam.score) {
+        if ((match.started || match.finished) && match.awayTeam.score >= 0) {
+            log(`Away team score for ${match.awayTeam.names.displayName}: ${match.awayTeam.score}`);
             awayTeamScore = getTextFormattedForListWidget(match.awayTeam.score.toString(), 2);
         }
         const awayTeamScoreLabel = row.addText(awayTeamScore);
@@ -377,7 +463,7 @@ async function populateFootballContent(matches) {
         row.addSpacer(10);
 
         // Away team name
-        const awayTeam = row.addText(getTextFormattedForListWidget(match.awayTeam.names.displayName, 7));
+        const awayTeam = row.addText(getTextFormattedForListWidget(getTeamName(match.awayTeam.names.displayName), 8));
         awayTeam.font = DEFAULT_FONT;
         awayTeam.leftAlignText();
         awayTeam.lineLimit = 1;
@@ -385,7 +471,13 @@ async function populateFootballContent(matches) {
 
         // TV channel
         if (match.tvInfo && match.tvInfo.channelInfo && match.tvInfo.channelInfo.fullName && typeof match.tvInfo.channelInfo.fullName === 'string') {
-            const fixtureChannel = row.addText(getTextFormattedForListWidget(match.tvInfo.channelInfo.fullName, 7));
+            const channelName = match.tvInfo.channelInfo.fullName
+                .replace('One', '1')
+                .replace('Two', '2')
+                .replace('Three', '3')
+                .replace('Four', '4')
+                .replace('Channel 4', 'Ch 4');
+            const fixtureChannel = row.addText(getTextFormattedForListWidget(channelName, 5));
             fixtureChannel.font = DEFAULT_FONT;
             fixtureChannel.textColor = Color.gray();
             fixtureChannel.leftAlignText();
@@ -883,7 +975,7 @@ async function populateBinsContent(footer) {
     if (nextCollections && nextCollections.nextCollectionDateDay && nextCollections.bins && nextCollections.bins.length > 0) {
         const collectionDay = getCollectionDay(nextCollections);
         binsLabel = collectionDay + ': ';
-        binsLabel += nextCollections.bins.map(bin => getBinIcon(bin)).join('');
+        binsLabel += nextCollections.bins.map(bin => getBinIcon(bin)).join(' ');
         const binsText = binsCol.addText(binsLabel);
         setTextAttributesForBinCollectionDate(new Date(nextCollections.nextCollectionDate), binsText);
     }
