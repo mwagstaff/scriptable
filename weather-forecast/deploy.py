@@ -3,7 +3,7 @@ import shutil
 
 
 SCRIPT_NAME = "WeatherForecast.js"
-DESTINATION_PATH = "/users/mwagstaff/Library/Mobile Documents/iCloud~dk~simonbs~Scriptable/Documents"
+DESTINATION_PATH = "{HOME_DIR}/Library/Mobile Documents/iCloud~dk~simonbs~Scriptable/Documents"
 
 
 def main():
@@ -12,6 +12,10 @@ def main():
 
 
 def deploy_script(script_name, destination_path):
+    
+    # Set the user's home directory in the destination path
+    home_dir = os.path.expanduser("~")
+    destination_path = destination_path.replace("{HOME_DIR}", home_dir)
     
     # Copy the script to the destination path
     shutil.copy(script_name, destination_path)
