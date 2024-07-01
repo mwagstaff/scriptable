@@ -2,9 +2,6 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: deep-purple; icon-glyph: futbol;
 
-// Your device ID (which you can get at the bottom of the settings screen in the Top Scores app)
-const DEVICE_ID = 'DEVICE_ID_SECRET';
-
 // Maximum number of matches to show
 const MAX_MATCHES = 15;
 
@@ -107,8 +104,8 @@ let nextRefresh = Date.now() + (1000 * 30) // Optimistically aim for a 30 second
 widget.refreshAfterDate = new Date(nextRefresh)
 
 const [fixturesJson, resultsJson] = await Promise.all([
-    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures`),
-    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results`)
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/fixtures`),
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/results`)
 ]);
 
 // Returns the JSON for the given URL
@@ -183,9 +180,14 @@ async function setTeamLogos(teamName) {
 }
 
 async function getTeamLogoPath(teamName) {
-    const logoJson = await getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/teams/${teamName}/logo`);
-    if (logoJson && logoJson.logoPath) {
-        return logoJson.logoPath;
+    if (teamName.includes('/') || teamName.includes('Winner') || teamName.includes('Loser')) {
+        return undefined;
+    }
+    else {
+        const logoJson = await getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/teams/${teamName}/logo`);
+        if (logoJson && logoJson.logoPath) {
+            return logoJson.logoPath;
+        }
     }
 }
 
@@ -196,6 +198,17 @@ async function setTeamLogoImage(teamName, imageUrl) {
     teamLogos[teamName] = image;
 }
 
+function getTeamName(teamName) {
+    if (teamName.includes('/')) {
+        return `${teamName.split('/')[0].slice(0, 3)}/${teamName.split('/')[1].slice(0, 3)}`;
+    }
+    else if (teamName.includes('Winner') || teamName.includes('Loser')) {
+        return 'TBC';
+    }
+    else {
+        return teamName;
+    }
+}
 
 async function populateFootballContent(matches) {
 
@@ -247,7 +260,7 @@ async function populateFootballContent(matches) {
         row.addSpacer(5);
 
         // Home team name
-        const homeTeam = row.addText(getTextFormattedForListWidget(match.homeTeam.names.displayName, 7));
+        const homeTeam = row.addText(getTextFormattedForListWidget(getTeamName(match.homeTeam.names.displayName), 8));
         homeTeam.font = DEFAULT_FONT;
         homeTeam.rightAlignText();
         homeTeam.lineLimit = 1;
@@ -260,7 +273,7 @@ async function populateFootballContent(matches) {
 
         // Home team score
         let homeTeamScore = getTextFormattedForListWidget('', 2);
-        if (match.homeTeam.score) {
+        if ((match.started || match.finished) && match.homeTeam.score >= 0) {
             homeTeamScore = getTextFormattedForListWidget(match.homeTeam.score.toString(), 2);
         }
         const homeTeamScoreLabel = row.addText(homeTeamScore);
@@ -276,7 +289,7 @@ async function populateFootballContent(matches) {
 
         // Away team score
         let awayTeamScore = getTextFormattedForListWidget('', 2);
-        if (match.awayTeam.score) {
+        if ((match.started || match.finished) && match.awayTeam.score >= 0) {
             awayTeamScore = getTextFormattedForListWidget(match.awayTeam.score.toString(), 2);
         }
         const awayTeamScoreLabel = row.addText(awayTeamScore);
@@ -291,7 +304,7 @@ async function populateFootballContent(matches) {
         row.addSpacer(10);
 
         // Away team name
-        const awayTeam = row.addText(getTextFormattedForListWidget(match.awayTeam.names.displayName, 7));
+        const awayTeam = row.addText(getTextFormattedForListWidget(getTeamName(match.awayTeam.names.displayName), 8));
         awayTeam.font = DEFAULT_FONT;
         awayTeam.leftAlignText();
         awayTeam.lineLimit = 1;
@@ -299,7 +312,13 @@ async function populateFootballContent(matches) {
 
         // TV channel
         if (match.tvInfo && match.tvInfo.channelInfo && match.tvInfo.channelInfo.fullName && typeof match.tvInfo.channelInfo.fullName === 'string') {
-            const fixtureChannel = row.addText(getTextFormattedForListWidget(match.tvInfo.channelInfo.fullName, 7));
+            const channelName = match.tvInfo.channelInfo.fullName
+                .replace('One', '1')
+                .replace('Two', '2')
+                .replace('Three', '3')
+                .replace('Four', '4')
+                .replace('Channel 4', 'Ch 4');
+            const fixtureChannel = row.addText(getTextFormattedForListWidget(channelName, 5));
             fixtureChannel.font = DEFAULT_FONT;
             fixtureChannel.textColor = Color.gray();
             fixtureChannel.leftAlignText();
