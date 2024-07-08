@@ -11,7 +11,7 @@
 // Define the from and to stations
 // Use station CRS codes, which can be found here: http://www.railwaycodes.org.uk/stations/station0.shtm
 const FROM_STATION = 'ECR';
-const TO_STATION = 'VIC';
+const TO_STATION = 'LBG';
 
 // The maximum number of trains to show in the widget
 const MAX_TRAINS = 3;
@@ -105,13 +105,53 @@ function populateTrainsRowContent(trainsRow, departures) {
 }
 
 function addDeparture(trainsRow, departure) {
-    log('Adding departure: ' + departure);
     const departureRow = trainsRow.addStack();
     departureRow.url = 'traintrack://';
-    const delay = getDelay(departure.locationDetail.gbttBookedDeparture, departure.locationDetail.realtimeDeparture);
-    addDepartureTime(departureRow, departure.locationDetail.realtimeDeparture, delay, departure.locationDetail.cancelReasonCode);
-    addDeparturePlatform(departureRow, departure.locationDetail.platform, departure.locationDetail.cancelReasonCode);
+
+    if (departure.serviceType === 'bus') {
+        addBusDeparture(departureRow, departure);
+    }
+    else {
+        const delay = getDelay(departure.locationDetail.gbttBookedDeparture, departure.locationDetail.realtimeDeparture);
+        addDepartureTime(departureRow, departure.locationDetail.realtimeDeparture, delay, departure.locationDetail.cancelReasonCode);
+        addDeparturePlatform(departureRow, departure.locationDetail.platform, departure.locationDetail.cancelReasonCode);
+    }
     departureRow.addSpacer();
+}
+
+// Displays a replacement bus service departure
+function addBusDeparture(departureRow, departure) {
+    
+    const col = departureRow.addStack();
+    col.addSpacer(3);
+    // Add a ':' time separator, e.g. change to '12:00' from '1200'
+    const departureTimeLabel = col.addText(departure.locationDetail.gbttBookedDeparture.replace(/(\d{2})(\d{2})/, '$1:$2'));
+    col.addSpacer(3);
+    departureTimeLabel.font = DEFAULT_FONT;
+    departureTimeLabel.centerAlignText();
+    departureTimeLabel.lineLimit = 1;
+
+    // Set colours based on any delay/cancellation
+    const departureColours = getBusDepartureColors();
+    col.backgroundColor = departureColours.backgroundColor;
+    departureTimeLabel.textColor = departureColours.foregroundColor;
+
+    departureRow.addSpacer(10);
+
+    const busIcon = departureRow.addText('🚌');
+    busIcon.font = DEFAULT_FONT;
+    busIcon.centerAlignText();
+    busIcon.lineLimit = 1;
+    departureRow.addSpacer(5);
+
+}
+
+// Returns the bus departure colours
+function getBusDepartureColors() {
+    return {
+        backgroundColor: new Color('#ff9913'),
+        foregroundColor: Color.black()
+    }
 }
 
 // Returns any delay in minutes between the booked and realtime departure times which are in the format HHMM
