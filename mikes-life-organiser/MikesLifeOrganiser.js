@@ -21,9 +21,9 @@ const CALENDAR_TAGS = ['', '🎉', ''];
 const DO_NOT_SHOW_EVENTS = ['laundry'];
 
 // Weather config
-const WEATHER_API_KEY = 'WEATHER_API_KEY_SECRET';
+const WEATHER_API_KEY = 'b7c507191e034a5791a124926242206';
 const MAX_WEATHER_HOURS = 4;
-const MAX_WEATHER_DAYS = 4;
+const MAX_WEATHER_DAYS = 2;
 
 // Trains config
 // Use station CRS codes, which can be found here: http://www.railwaycodes.org.uk/stations/station0.shtm
@@ -46,7 +46,7 @@ const DEFAULT_FONT_BINS_TOMORROW = new Font('Menlo-Bold', 15);
 
 // Request timeouts (in seconds)
 const DEFAULT_REQUEST_TIMEOUT_SECONDS = 10;
-const BINS_REQUEST_TIMEOUT_SECONDS = 20;
+const BINS_REQUEST_TIMEOUT_SECONDS = 40;
 
 
 // **********************************************
@@ -839,10 +839,51 @@ function populateTrainsRowContent(trainsRow, departures) {
 function addDeparture(trainsRow, departure) {
     const departureRow = trainsRow.addStack();
     departureRow.url = 'traintrack://';
-    const delay = getDelay(departure.locationDetail.gbttBookedDeparture, departure.locationDetail.realtimeDeparture);
-    addDepartureTime(departureRow, departure.locationDetail.realtimeDeparture, delay, departure.locationDetail.cancelReasonCode);
-    addDeparturePlatform(departureRow, departure.locationDetail.platform, departure.locationDetail.cancelReasonCode);
+
+    if (departure.serviceType === 'bus') {
+        addBusDeparture(departureRow, departure);
+    }
+    else {
+        const delay = getDelay(departure.locationDetail.gbttBookedDeparture, departure.locationDetail.realtimeDeparture);
+        addDepartureTime(departureRow, departure.locationDetail.realtimeDeparture, delay, departure.locationDetail.cancelReasonCode);
+        addDeparturePlatform(departureRow, departure.locationDetail.platform, departure.locationDetail.cancelReasonCode);
+    }
     departureRow.addSpacer();
+}
+
+// Displays a replacement bus service departure
+function addBusDeparture(departureRow, departure) {
+    
+    const col = departureRow.addStack();
+    col.addSpacer(3);
+    // Add a ':' time separator, e.g. change to '12:00' from '1200'
+    const departureTimeLabel = col.addText(departure.locationDetail.gbttBookedDeparture.replace(/(\d{2})(\d{2})/, '$1:$2'));
+    col.addSpacer(3);
+    departureTimeLabel.font = new Font('Menlo-Bold', 12);
+    departureTimeLabel.centerAlignText();
+    departureTimeLabel.lineLimit = 1;
+
+    // Set colours based on any delay/cancellation
+    const departureColours = getBusDepartureColors();
+    col.backgroundColor = departureColours.backgroundColor;
+    departureTimeLabel.textColor = departureColours.foregroundColor;
+
+    departureRow.addSpacer(10);
+
+    const busIcon = departureRow.addText('🚌');
+    busIcon.font = new Font('Menlo-Bold', 12);
+    busIcon.centerAlignText();
+    busIcon.lineLimit = 1;
+    departureRow.addSpacer(5);
+
+}
+
+// Returns the bus departure colours
+function getBusDepartureColors() {
+    return {
+        backgroundColor: new Color('#ff9913'),
+        foregroundColor: Color.black()
+    }
 }
 
 // Returns any delay in minutes between the booked and realtime departure times which are in the format HHMM
