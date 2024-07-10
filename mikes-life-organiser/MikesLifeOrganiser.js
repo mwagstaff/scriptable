@@ -21,8 +21,8 @@ const CALENDAR_TAGS = ['', '🎉', ''];
 const DO_NOT_SHOW_EVENTS = ['laundry'];
 
 // Weather config
-const WEATHER_API_KEY = 'b7c507191e034a5791a124926242206';
-const MAX_WEATHER_HOURS = 4;
+const WEATHER_API_KEY = 'WEATHER_API_KEY_SECRET';
+const MAX_WEATHER_HOURS = 6;
 const MAX_WEATHER_DAYS = 2;
 
 // Trains config
@@ -275,8 +275,8 @@ sectionSeparator();
 let teamLogos = {};
 
 const [fixturesJson, resultsJson] = await Promise.all([
-    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/fixtures`),
-    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/results`)
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/fixtures?limit=${MAX_MATCHES}`),
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/results?limit=${MAX_MATCHES}`)
 ]);
 
 const matches = await getMatches();
