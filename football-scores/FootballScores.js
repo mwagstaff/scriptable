@@ -3,7 +3,9 @@
 // icon-color: deep-purple; icon-glyph: futbol;
 
 // Maximum number of matches to show
-const MAX_MATCHES = 15;
+// Note that showing too many matches may cause the widget to hit the iOS memory limit,
+// resulting in the widget not updating. This is an OS limitation, not a Scriptable limitation.
+const MAX_MATCHES = 12;
 
 // API server URI
 const FOOTBALL_SERVER_URI_DOMAIN = 'https://football-scores-api.fly.dev';
