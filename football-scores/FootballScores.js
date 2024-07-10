@@ -104,8 +104,8 @@ let nextRefresh = Date.now() + (1000 * 30) // Optimistically aim for a 30 second
 widget.refreshAfterDate = new Date(nextRefresh)
 
 const [fixturesJson, resultsJson] = await Promise.all([
-    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/fixtures`),
-    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/results`)
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/fixtures?limit=${MAX_MATCHES}`),
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/results?limit=${MAX_MATCHES}`),
 ]);
 
 // Returns the JSON for the given URL
