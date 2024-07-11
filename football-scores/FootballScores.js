@@ -45,12 +45,12 @@ function sectionSeparator() {
 
 // Show a date separator (horizontal dark gray line)
 function dateSeparator() {
-    widget.addSpacer(5);
+    widget.addSpacer(8);
     let hline = widget.addStack();
     hline.size = new Size(0, 1);
     hline.backgroundColor = Color.darkGray();
     hline.addSpacer();
-    widget.addSpacer(5);
+    widget.addSpacer(8);
 }
 
 // Returns true if the given date is today
