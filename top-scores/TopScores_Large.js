@@ -11,10 +11,10 @@ const MAX_MATCHES = 12;
 const FOOTBALL_SERVER_URI_DOMAIN = 'https://football-scores-api.fly.dev';
 
 // Device ID - this should match your device ID in the Top Scores app (found at the bottom of the Settings screen)
-const DEVICE_ID = '{DEVICE_ID}';
+const DEVICE_ID = '{__DEVICE_ID__}';
 
 // Show only matches on TV or not
-const SHOW_ONLY_MATCHES_ON_TV = {TV_ONLY};
+const SHOW_ONLY_MATCHES_ON_TV = {__TV_ONLY__};
 
 // Request timeouts (in seconds)
 const DEFAULT_REQUEST_TIMEOUT_SECONDS = 10;
@@ -108,12 +108,14 @@ let teamLogos = {};
 
 widget.url = 'dev.skynolimit.topscores://';
 
-let nextRefresh = Date.now() + (1000 * 30) // Optimistically aim for a 30 second refresh (in reality, iOS will only refresh every 10-15 minutes)
-widget.refreshAfterDate = new Date(nextRefresh)
+let nextRefresh = Date.now() + (1000 * 30); // Optimistically aim for a 30 second refresh (in reality, iOS will only refresh every 10-15 minutes)
+widget.refreshAfterDate = new Date(nextRefresh);
 
+
+const tvOnlyParam = TV_ONLY ? '&tvOnly' : '';
 const [fixturesJson, resultsJson] = await Promise.all([
-    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/fixtures?limit=${MAX_MATCHES}`),
-    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/matches/results?limit=${MAX_MATCHES}`),
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/fixtures?limit=${MAX_MATCHES}${tvOnlyParam}`),
+    getJson(`${FOOTBALL_SERVER_URI_DOMAIN}/api/v1/user/${DEVICE_ID}/matches/results?limit=${MAX_MATCHES}${tvOnlyParam}`),
 ]);
 
 // Returns the JSON for the given URL
