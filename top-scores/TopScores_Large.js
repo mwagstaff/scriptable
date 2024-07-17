@@ -14,7 +14,7 @@ const FOOTBALL_SERVER_URI_DOMAIN = 'https://football-scores-api.fly.dev';
 const DEVICE_ID = '{DEVICE_ID}';
 
 // Show only matches on TV or not
-const SHOW_ONLY_MATCHES_ON_TV = '{TV_ONLY}';
+const SHOW_ONLY_MATCHES_ON_TV = {TV_ONLY};
 
 // Request timeouts (in seconds)
 const DEFAULT_REQUEST_TIMEOUT_SECONDS = 10;
