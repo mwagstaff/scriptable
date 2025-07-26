@@ -2,7 +2,8 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: deep-purple; icon-glyph: train;
 
-
+// Supporting Scriptable widget for TrainTrack UK:
+// https://apps.apple.com/gb/app/traintrack-uk/id6504205950
 
 // **********************************************
 // *********** Begin widget config **************
@@ -23,6 +24,10 @@ const DEFAULT_FONT = new Font('Menlo', 15);
 const DEFAULT_REQUEST_TIMEOUT_SECONDS = 10;
 
 
+
+// ********************************************************************************************
+// Widget code starts here - please don't touch unless you know what you're doing!
+// ********************************************************************************************
 
 // **********************************************
 // *********** Begin globals ********************
@@ -63,15 +68,22 @@ async function populateTrainsContent() {
 
     const trainsData = await getTrainsData();
 
+    let trainsDataIndex = 0;
+
     if (trainsData && trainsData.length > 0) {
         for (const data of trainsData) {
             if (data.departures) {
                 const trainsRow = widget.addStack();
                 trainsRow.url = 'traintrack://';
-                await populateTrainsRowContent(trainsRow, data.departures);
+                
+                // Set the departure station name to be FROM_STATION if this is the first trainsData item
+                const departureStationName = trainsDataIndex === 0 ? FROM_STATION : TO_STATION;
+
+                await populateTrainsRowContent(departureStationName, trainsRow, data.departures);
                 widget.addStack(trainsRow);
                 sectionSeparator();
             }
+            trainsDataIndex++;
         }
     }
 
@@ -88,10 +100,10 @@ async function getTrainsData() {
     return await Promise.all(urls.map(url => getJson(url)));
 }
 
-function populateTrainsRowContent(trainsRow, departures) {
-    log('Populating trains content: ' + departures.length);
+function populateTrainsRowContent(departureStationName, trainsRow, departures) {
+    log('Populating trains content: ' + departureStationName + ' - ' + departures.length);
 
-    const stationNameLabel = trainsRow.addText(departures[0].locationDetail.crs);
+    const stationNameLabel = trainsRow.addText(departureStationName);
     stationNameLabel.font = DEFAULT_FONT;
     stationNameLabel.textColor = Color.lightGray();
     stationNameLabel.centerAlignText();
@@ -112,9 +124,9 @@ function addDeparture(trainsRow, departure) {
         addBusDeparture(departureRow, departure);
     }
     else {
-        const delay = getDelay(departure.locationDetail.gbttBookedDeparture, departure.locationDetail.realtimeDeparture);
-        addDepartureTime(departureRow, departure.locationDetail.realtimeDeparture, delay, departure.locationDetail.cancelReasonCode);
-        addDeparturePlatform(departureRow, departure.locationDetail.platform, departure.locationDetail.cancelReasonCode);
+        const delay = getDelay(departure.departure_time.scheduled, departure.departure_time.estimated);
+        addDepartureTime(departureRow, departure.departure_time.estimated, delay, departure.cancelReason);
+        addDeparturePlatform(departureRow, departure.platform, departure.cancelReason);
     }
     departureRow.addSpacer();
 }
@@ -123,10 +135,6 @@ function addDeparture(trainsRow, departure) {
 function addBusDeparture(departureRow, departure) {
     
     const col = departureRow.addStack();
-    col.addSpacer(3);
-    // Add a ':' time separator, e.g. change to '12:00' from '1200'
-    const departureTimeLabel = col.addText(departure.locationDetail.gbttBookedDeparture.replace(/(\d{2})(\d{2})/, '$1:$2'));
-    col.addSpacer(3);
     departureTimeLabel.font = DEFAULT_FONT;
     departureTimeLabel.centerAlignText();
     departureTimeLabel.lineLimit = 1;
@@ -158,8 +166,12 @@ function getBusDepartureColors() {
 function getDelay(bookedDepartureTime, realtimeDepartureTime) {
     // Handle edge case for departures scheduled to close to midnight but are delayed until the next day
     if (bookedDepartureTime.slice(0, 2) == '23' && realtimeDepartureTime.slice(0, 2) == '00') {
-        realtimeDepartureTime += 2400;
+        realtimeDepartureTime += '24:00';
     }
+    // Strip out the colons from the departure times
+    bookedDepartureTime = bookedDepartureTime.replace(/:/g, '');
+    realtimeDepartureTime = realtimeDepartureTime.replace(/:/g, '');
+    // Calculate the delay in minutes
     const delay = realtimeDepartureTime - bookedDepartureTime;
     return delay;
 }
@@ -229,6 +241,12 @@ function getDepartureColors(departureTime, delay, cancelReasonCode) {
             foregroundColor: Color.white()
         }
     }
+    else if (departureTime.toLowerCase().includes('delayed')) {
+        return {
+            backgroundColor: new Color('#ff9913'),
+            foregroundColor: Color.black()
+        }
+    }
 
     let backgroundColor = new Color('#57f470');
     let foregroundColor = Color.black();
@@ -258,9 +276,18 @@ function addDeparturePlatform(departureRow, platform, cancelReasonCode) {
     if (cancelReasonCode) {
         platform = 'X';
     }
+    else if (!platform) {
+        platform = '?';
+    }
     const platformLabel = departureRow.addText(platform);
     platformLabel.font = DEFAULT_FONT;
-    platformLabel.textColor = Color.white();
+    // If the platform is not 'X' or '?', then set the text colour to white
+    if (platform !== 'X' && platform !== '?') {
+        platformLabel.textColor = Color.white();
+    }
+    else {
+        platformLabel.textColor = Color.gray();
+    }
     platformLabel.centerAlignText();
     platformLabel.lineLimit = 1;
     departureRow.addSpacer();
